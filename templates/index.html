@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Media Downloader</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>Media Downloader</h1>
+
+    <form id="downloadForm">
+      <input type="text" id="url" placeholder="Enter YouTube or playlist URL" required>
+
+      <div class="options">
+        <label>
+          Format:
+          <select id="format">
+            <option value="mp3">MP3 (Audio)</option>
+            <option value="mp4">MP4 (Video)</option>
+          </select>
+        </label>
+
+        <label>
+          Quality:
+          <select id="quality"></select>
+        </label>
+
+        <label>
+          Save to:
+          <select id="location">
+            <option value="local">This device</option>
+            <option value="network">Network (/mnt/media/music)</option>
+          </select>
+        </label>
+      </div>
+
+      <button type="submit">Start Download</button>
+    </form>
+
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const formatSelect = document.getElementById('format');
+    const qualitySelect = document.getElementById('quality');
+    const statusDiv = document.getElementById('status');
+    const form = document.getElementById('downloadForm');
+
+    const qualityOptions = {
+      mp3: [
+        { value: '128', label: '128 kbps' },
+        { value: '192', label: '192 kbps (default)' },
+        { value: '256', label: '256 kbps' },
+        { value: '320', label: '320 kbps' }
+      ],
+      mp4: [
+        { value: '360', label: '360p' },
+        { value: '480', label: '480p' },
+        { value: '720', label: '720p (HD)' },
+        { value: '1080', label: '1080p (Full HD)' },
+        { value: 'best', label: 'Best available' }
+      ]
+    };
+
+    function updateQualityOptions() {
+      const format = formatSelect.value;
+      qualitySelect.innerHTML = "";
+      qualityOptions[format].forEach(opt => {
+        const option = document.createElement("option");
+        option.value = opt.value;
+        option.textContent = opt.label;
+        if (format === 'mp3' && opt.value === '192') {
+          option.selected = true;
+        } else if (format === 'mp4' && opt.value === 'best') {
+          option.selected = true;
+        }
+        qualitySelect.appendChild(option);
+      });
+    }
+
+    formatSelect.addEventListener('change', updateQualityOptions);
+    updateQualityOptions(); // init on load
+
+    // form
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const url = document.getElementById('url').value;
+      const format = formatSelect.value;
+      const quality = qualitySelect.value;
+      const location = document.getElementById('location').value;
+
+      statusDiv.innerHTML = "Starting download...";
+      const res = await fetch('/api/download', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({url, format, quality, location})
+      });
+
+      const data = await res.json();
+      if (!data.task_id) {
+        statusDiv.innerHTML = `<span class="error">${data.error || "Error starting download"}</span>`;
+        return;
+      }
+
+      pollStatus(data.task_id);
+    });
+
+    // status
+    function pollStatus(taskId) {
+      const interval = setInterval(async () => {
+        const res = await fetch(`/api/status/${taskId}`);
+        const data = await res.json();
+
+        if (data.error) {
+          statusDiv.innerHTML = `<span class="error">${data.error}</span>`;
+          clearInterval(interval);
+          return;
+        }
+
+        statusDiv.innerHTML = `
+          <p><strong>Status:</strong> ${data.status}</p>
+          <p><strong>Progress:</strong> ${data.progress.toFixed(1)}%</p>
+          <p><strong>File:</strong> ${data.filename || '...'}</p>
+          ${data.error ? `<p class="error">${data.error}</p>` : ''}
+        `;
+
+        if (data.status === 'completed' || data.status === 'error') {
+          clearInterval(interval);
+          statusDiv.innerHTML += '<p>Download Completed</p>';
+        }
+      }, 2000);
+    }
+  </script>
+</body>
+</html>
