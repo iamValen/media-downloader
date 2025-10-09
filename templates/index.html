@@ -30,8 +30,8 @@
         <label>
           Save to:
           <select id="location">
-            <option value="local">This device</option>
-            <option value="network">Network (/mnt/media/music)</option>
+            <!--<option value="local">This device</option>-->
+            <option value="network">Host (/mnt/media/music)</option>
           </select>
         </label>
       </div>
@@ -83,7 +83,7 @@
     formatSelect.addEventListener('change', updateQualityOptions);
     updateQualityOptions(); // init on load
 
-    // form
+    // submit form
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const url = document.getElementById('url').value;
