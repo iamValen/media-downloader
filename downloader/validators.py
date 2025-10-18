@@ -32,4 +32,4 @@ def validate_quality(quality, format_type):
 
 def validate_location(location, allowed_locations):
     """Validate location or return default."""
-    return location if location in allowed_locations else 'network'
+    return location if location in allowed_locations else 'default'

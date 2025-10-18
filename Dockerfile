@@ -1,11 +1,11 @@
 FROM python:3.11-slim-bookworm
 
 LABEL maintainer="iamValen" \
-      description="Media Downloader - YouTube and media content downloader" \
+      description="Media Downloader" \
       version="1.0.0"
 
-RUN groupadd -r appuser -g 1000 && \
-    useradd -r -g appuser -u 1000 -m -s /sbin/nologin appuser
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid appuser --shell /sbin/nologin --create-home appuser
 
 WORKDIR /app
 

@@ -18,7 +18,7 @@ def download():
         url = data.get('url', '').strip()
         format_type = data.get('format', 'mp3')
         quality = data.get('quality', '192')
-        location = data.get('location', 'network')
+        location = data.get('location', 'default')
         is_album = data.get('isAlbum', False)
         
         task_id = start_download(url, format_type, quality, location, is_album)
@@ -52,8 +52,8 @@ def status(task_id):
 def config():
     """Get application configuration."""
     return jsonify({
-        'network_path': Config.NETWORK_DOWNLOAD_PATH,
-        'temp_path': Config.TEMP_DOWNLOAD_PATH,
+        'default_path': Config.DEFAULT_DOWNLOAD_PATH,
+        'alt_path': Config.ALT_DOWNLOAD_PATH,
         'allowed_formats': Config.ALLOWED_FORMATS,
         'max_playlist_size': Config.MAX_PLAYLIST_SIZE,
     }), 200

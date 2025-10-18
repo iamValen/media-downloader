@@ -26,9 +26,8 @@ if __name__ == "__main__":
     
     print("=" * 60)
     print("Media Downloader Server Starting...")
-    print("=" * 60)
-    print(f"Network path: {Config.NETWORK_DOWNLOAD_PATH}")
-    print(f"Temp path: {Config.TEMP_DOWNLOAD_PATH}")
+    print(f"Default path: {Config.DEFAULT_DOWNLOAD_PATH}")
+    print(f"Alt path: {Config.ALT_DOWNLOAD_PATH}")
     print("=" * 60)
     
     app.run(host='0.0.0.0', port=5000, debug=True)

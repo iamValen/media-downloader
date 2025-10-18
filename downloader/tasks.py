@@ -44,9 +44,9 @@ def download_media(url, format_type, quality, download_location, task_id, is_alb
 
     try:
         output_path = (
-            Config.NETWORK_DOWNLOAD_PATH
-            if download_location == 'network'
-            else Config.TEMP_DOWNLOAD_PATH
+            Config.DEFAULT_DOWNLOAD_PATH
+            if download_location == 'default'
+            else Config.ALT_DOWNLOAD_PATH
         )
         os.makedirs(output_path, exist_ok=True)
 

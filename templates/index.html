@@ -9,7 +9,6 @@
 <body>
     <div class="container">
         <h1>Media Downloader</h1>
-        
         <form id="downloadForm">
             <div class="form-group">
                 <label for="url">Media URL</label>
@@ -17,7 +16,7 @@
                     type="text" 
                     id="url" 
                     placeholder="Enter Media URL (YouTube, etc.)" 
-                    required
+                    required 
                     autocomplete="off"
                 >
                 <small class="help-text">Paste a link to a video, audio, or playlist</small>
@@ -35,14 +34,13 @@
                 <div class="form-group">
                     <label for="quality">Quality</label>
                     <select id="quality"></select>
-                    <small class="help-text" id="qualityHint"></small>
                 </div>
 
                 <div class="form-group">
                     <label for="location">Save to</label>
                     <select id="location">
-                        <option value="network">Host (/mnt/media)</option>
-                        <option value="temp">Temporary</option>
+                        <option value="default">Host (/mnt/media)</option>
+                        <option value="alt">Temporary</option>
                     </select>
                 </div>
             </div>
