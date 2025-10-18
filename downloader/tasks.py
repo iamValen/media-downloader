@@ -157,7 +157,7 @@ def download_media(url, format_type, quality, download_location, task_id, is_alb
 
                 ydl_opts['outtmpl'] = os.path.join(album_folder, f"{_sanitize_name(title)}.%(ext)s")
                 
-                # Add metadata for single videos too
+                # Add metadata for single videos
                 ydl_opts['postprocessor_args'] = {
                     'ffmpeg': [
                         '-metadata', f'album={album}',
@@ -194,7 +194,6 @@ def start_download(url, format_type, quality, download_location, is_album=False)
     task = DownloadProgress(task_id)
     download_tasks[task_id] = task
 
-    # Run in a background thread
     t = threading.Thread(
         target=download_media,
         args=(url, format_type, quality, download_location, task_id, is_album),
