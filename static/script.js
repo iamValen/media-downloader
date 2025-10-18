@@ -1,12 +1,16 @@
-const formatSelect = document.getElementById('format');
-const qualitySelect = document.getElementById('quality');
-const qualityHint = document.getElementById('qualityHint');
-const statusDiv = document.getElementById('status');
-const form = document.getElementById('downloadForm');
-const submitBtn = document.getElementById('submitBtn');
-const urlInput = document.getElementById('url');
+const elements = {
+    format: document.getElementById('format'),
+    quality: document.getElementById('quality'),
+    qualityHint: document.getElementById('qualityHint'),
+    status: document.getElementById('status'),
+    form: document.getElementById('downloadForm'),
+    submitBtn: document.getElementById('submitBtn'),
+    url: document.getElementById('url'),
+    location: document.getElementById('location'),
+    isAlbum: document.getElementById('isAlbum')
+};
 
-const qualityOptions = {
+const QUALITY_OPTIONS = {
     mp3: [
         { value: '128', label: '128 kbps', hint: 'Low quality' },
         { value: '192', label: '192 kbps (default)', hint: 'Standard quality' },
@@ -22,153 +26,122 @@ const qualityOptions = {
     ]
 };
 
+const POLL_INTERVAL = 2000;
+
 let currentPollInterval = null;
 let isDownloading = false;
 
 
 function updateQualityOptions() {
-    const format = formatSelect.value;
-    qualitySelect.innerHTML = "";
+    const format = elements.format.value;
+    const options = QUALITY_OPTIONS[format];
     
-    qualityOptions[format].forEach(opt => {
-        const option = document.createElement("option");
-        option.value = opt.value;
-        option.textContent = opt.label;
-        
-        // Set defaults
-        if (format === 'mp3' && opt.value === '192') {
-            option.selected = true;
-        } else if (format === 'mp4' && opt.value === 'best') {
-            option.selected = true;
-        }
-        
-        qualitySelect.appendChild(option);
-    });
+    elements.quality.innerHTML = options.map(opt => {
+        const isDefault = (format === 'mp3' && opt.value === '192') || 
+                          (format === 'mp4' && opt.value === 'best');
+        return `<option value="${opt.value}" ${isDefault ? 'selected' : ''}>${opt.label}</option>`;
+    }).join('');
     
     updateQualityHint();
 }
 
 
 function updateQualityHint() {
-    const format = formatSelect.value;
-    const quality = qualitySelect.value;
-    const option = qualityOptions[format].find(o => o.value === quality);
+    const format = elements.format.value;
+    const quality = elements.quality.value;
+    const option = QUALITY_OPTIONS[format].find(o => o.value === quality);
     
-    if (option) {
-        qualityHint.textContent = option.hint;
-    }
+    elements.qualityHint.textContent = option ? option.hint : '';
 }
 
 
 function renderStatus(task) {
-    let statusClass = 'status-box';
+    const statusClasses = ['status-box'];
     
-    if (task.status === 'error') {
-        statusClass += ' error';
-    } else if (task.status === 'completed') {
-        statusClass += ' success';
-    } else if (task.failed_items > 0) {
-        statusClass += ' warning';
-    }
+    if (task.status === 'error') statusClasses.push('error');
+    else if (task.status === 'completed') statusClasses.push('success');
+    else if (task.failed_items > 0) statusClasses.push('warning');
     
     const statusText = task.status.charAt(0).toUpperCase() + task.status.slice(1);
-    let progressHtml = '';
     
-    if (task.progress > 0 && task.progress < 100) {
-        const progressPercent = task.progress.toFixed(1);
-        progressHtml = `
-            <div class="progress-bar">
-                <div class="progress-fill" style="width: ${progressPercent}%"></div>
-            </div>
-            <div class="status-row">
-                <span class="status-label">Progress:</span>
-                <span class="status-value">${progressPercent}%</span>
-            </div>
-        `;
-    }
+    const sections = [
+        createStatusRow('Status', statusText),
+        createProgressBar(task),
+        createSpeedEta(task),
+        createFileInfo(task),
+        createFailedInfo(task),
+        createErrorInfo(task)
+    ].filter(Boolean);
     
-    let speedEtaHtml = '';
-    if (task.speed && task.eta) {
-        const speedMB = (task.speed / (1024 * 1024)).toFixed(2);
-        speedEtaHtml = `
-            <div class="status-row">
-                <span class="status-label">Speed:</span>
-                <span class="status-value">${speedMB} MB/s</span>
-            </div>
-            <div class="status-row">
-                <span class="status-label">ETA:</span>
-                <span class="status-value">${formatSeconds(task.eta)}</span>
-            </div>
-        `;
-    }
-    
-    let fileInfo = '';
-    if (task.filename) {
-        fileInfo = `
-            <div class="status-row">
-                <span class="status-label">File:</span>
-                <span class="status-value">${escapeHtml(task.filename)}</span>
-            </div>
-        `;
-    }
-    
-    let errorInfo = '';
-    if (task.error) {
-        errorInfo = `
-            <div class="status-row">
-                <span class="status-label error">Error:</span>
-                <span class="status-value error">${escapeHtml(task.error)}</span>
-            </div>
-        `;
-    }
-    
-    let failedInfo = '';
-    if (task.failed_items > 0) {
-        failedInfo = `
-            <div class="status-row">
-                <span class="status-label warning">Failed Items:</span>
-                <span class="status-value warning">${task.failed_items}</span>
-            </div>
-        `;
-    }
-    
-    statusDiv.innerHTML = `
-        <div class="${statusClass}">
-            <div class="status-row">
-                <span class="status-label">Status:</span>
-                <span class="status-value">${statusText}</span>
-            </div>
-            ${progressHtml}
-            ${speedEtaHtml}
-            ${fileInfo}
-            ${failedInfo}
-            ${errorInfo}
+    elements.status.innerHTML = `
+        <div class="${statusClasses.join(' ')}">
+            ${sections.join('')}
         </div>
     `;
 }
 
 
+function createStatusRow(label, value, className = '') {
+    return `
+        <div class="status-row">
+            <span class="status-label ${className}">${label}:</span>
+            <span class="status-value ${className}">${escapeHtml(value)}</span>
+        </div>
+    `;
+}
+
+
+function createProgressBar(task) {
+    if (task.progress <= 0 || task.progress >= 100) return null;
+    
+    const percent = task.progress.toFixed(1);
+    return `
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: ${percent}%"></div>
+        </div>
+        ${createStatusRow('Progress', `${percent}%`)}
+    `;
+}
+
+
+function createSpeedEta(task) {
+    if (!task.speed || !task.eta) return null;
+    
+    const speedMB = (task.speed / (1024 * 1024)).toFixed(2);
+    return `
+        ${createStatusRow('Speed', `${speedMB} MB/s`)}
+        ${createStatusRow('ETA', formatSeconds(task.eta))}
+    `;
+}
+
+
+function createFileInfo(task) {
+    return task.filename ? createStatusRow('File', task.filename) : null;
+}
+
+
+function createFailedInfo(task) {
+    return task.failed_items > 0 
+        ? createStatusRow('Failed Items', task.failed_items.toString(), 'warning') 
+        : null;
+}
+
+
+function createErrorInfo(task) {
+    return task.error ? createStatusRow('Error', task.error, 'error') : null;
+}
+
+
 function pollStatus(taskId) {
-    if (currentPollInterval) {
-        clearInterval(currentPollInterval);
-    }
+    stopPolling();
     
     currentPollInterval = setInterval(async () => {
         try {
             const res = await fetch(`/api/status/${taskId}`);
             
             if (!res.ok) {
-                statusDiv.innerHTML = `
-                    <div class="status-box error">
-                        <div class="status-row">
-                            <span class="status-label error">Error:</span>
-                            <span class="status-value error">Failed to fetch status</span>
-                        </div>
-                    </div>
-                `;
-                clearInterval(currentPollInterval);
-                isDownloading = false;
-                submitBtn.disabled = false;
+                showError('Failed to fetch status');
+                stopPolling();
                 return;
             }
             
@@ -176,31 +149,38 @@ function pollStatus(taskId) {
             renderStatus(task);
             
             if (task.status === 'completed' || task.status === 'error') {
-                clearInterval(currentPollInterval);
-                isDownloading = false;
-                submitBtn.disabled = false;
+                stopPolling();
             }
         } catch (error) {
             console.error('Poll error:', error);
-            statusDiv.innerHTML = `
-                <div class="status-box error">
-                    <div class="status-row">
-                        <span class="status-label error">Error:</span>
-                        <span class="status-value error">Connection lost</span>
-                    </div>
-                </div>
-            `;
-            clearInterval(currentPollInterval);
-            isDownloading = false;
-            submitBtn.disabled = false;
+            showError('Connection lost');
+            stopPolling();
         }
-    }, 2000);
+    }, POLL_INTERVAL);
+}
+
+
+function stopPolling() {
+    if (currentPollInterval) {
+        clearInterval(currentPollInterval);
+        currentPollInterval = null;
+    }
+    isDownloading = false;
+    elements.submitBtn.disabled = false;
+}
+
+
+function showError(message) {
+    elements.status.innerHTML = `
+        <div class="status-box error">
+            ${createStatusRow('Error', message, 'error')}
+        </div>
+    `;
 }
 
 
 function formatSeconds(seconds) {
     if (!seconds || seconds < 0) return 'Unknown';
-    
     if (seconds < 60) return `${Math.round(seconds)}s`;
     if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
     return `${Math.round(seconds / 3600)}h`;
@@ -214,59 +194,47 @@ function escapeHtml(text) {
 }
 
 
-form.addEventListener('submit', async (e) => {
+elements.form.addEventListener('submit', async (e) => {
     e.preventDefault();
     
     if (isDownloading) return;
     
-    const url = urlInput.value.trim();
-    const format = formatSelect.value;
-    const quality = qualitySelect.value;
-    const location = document.getElementById('location').value;
+    const url = elements.url.value.trim();
     
     if (!url) {
-        statusDiv.innerHTML = `
-            <div class="status-box error">
-                <div class="status-row">
-                    <span class="status-label error">Error:</span>
-                    <span class="status-value error">URL cannot be empty</span>
-                </div>
-            </div>
-        `;
+        showError('URL cannot be empty');
         return;
     }
     
     isDownloading = true;
-    submitBtn.disabled = true;
-    statusDiv.innerHTML = `
+    elements.submitBtn.disabled = true;
+    elements.status.innerHTML = `
         <div class="status-box">
-            <div class="status-row">
-                <span class="status-label">Status:</span>
-                <span class="status-value">Starting download...</span>
-            </div>
+            ${createStatusRow('Status', 'Starting download...')}
         </div>
     `;
     
     try {
+        const payload = {
+            url,
+            format: elements.format.value,
+            quality: elements.quality.value,
+            location: elements.location.value,
+            isAlbum: elements.isAlbum.checked
+        };
+        
         const res = await fetch('/api/download', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, format, quality, location })
+            body: JSON.stringify(payload)
         });
         
         const data = await res.json();
         
         if (!res.ok || !data.task_id) {
-            statusDiv.innerHTML = `
-                <div class="status-box error">
-                    <div class="status-row">
-                        <span class="status-label error">Error:</span>
-                        <span class="status-value error">${escapeHtml(data.error || 'Failed to start download')}</span>
-                    </div>
-                </div>
-            `;
+            showError(data.error || 'Failed to start download');
             isDownloading = false;
-            submitBtn.disabled = false;
+            elements.submitBtn.disabled = false;
             return;
         }
         
@@ -274,23 +242,13 @@ form.addEventListener('submit', async (e) => {
     
     } catch (error) {
         console.error('Submit error:', error);
-        statusDiv.innerHTML = `
-            <div class="status-box error">
-                <div class="status-row">
-                    <span class="status-label error">Error:</span>
-                    <span class="status-value error">Network error. Please try again.</span>
-                </div>
-            </div>
-        `;
+        showError('Network error. Please try again.');
         isDownloading = false;
-        submitBtn.disabled = false;
+        elements.submitBtn.disabled = false;
     }
 });
 
-formatSelect.addEventListener('change', updateQualityOptions);
+elements.format.addEventListener('change', updateQualityOptions);
+elements.quality.addEventListener('change', updateQualityHint);
 
-qualitySelect.addEventListener('change', updateQualityHint);
-
-document.addEventListener('DOMContentLoaded', () => {
-    updateQualityOptions();
-});
+document.addEventListener('DOMContentLoaded', updateQualityOptions);

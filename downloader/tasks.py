@@ -4,6 +4,7 @@ import threading
 import yt_dlp
 from datetime import datetime
 from .utils import progress_hook, cleanup_task, apply_metadata
+from .validators import ValidationError
 from config import Config
 
 download_tasks = {}
@@ -30,92 +31,13 @@ class DownloadProgress:
     def to_dict(self):
         return self.__dict__
 
-
-def _sanitize_filename(name):
+def _sanitize_name(name):
+    """Make filesystem-safe filenames"""
     if not name:
         return "Unknown"
     return "".join(c for c in name if c.isalnum() or c in " .-_").strip()
 
-
-def _build_output_path(base_path, artist, album):
-    artist_folder = os.path.join(base_path, _sanitize_filename(artist))
-    album_folder = os.path.join(artist_folder, _sanitize_filename(album))
-    os.makedirs(album_folder, exist_ok=True)
-    return album_folder
-
-
-def _get_metadata(entry, default_title="Unknown Title"):
-    title = entry.get('track') or entry.get('title') or default_title
-    artist = entry.get('artist') or entry.get('uploader') or "Unknown Artist"
-    album = entry.get('album') or entry.get('playlist_title') or "Singles"
-    return title, artist, album
-
-
-def _create_base_opts(task_id):
-    return {
-        'progress_hooks': [lambda d: progress_hook(d, task_id, download_tasks)],
-        'quiet': False,
-        'no_warnings': False,
-        'ignoreerrors': True,
-        'socket_timeout': 30,
-        'skip_unavailable_fragments': True,
-        'fragment_retries': 3,
-        'postprocessors': [],
-    }
-
-
-def _configure_format_opts(base_opts, format_type, quality):
-    if format_type == 'mp3':
-        base_opts['format'] = 'bestaudio/best'
-        base_opts['postprocessors'].append({
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': quality or '192',
-        })
-    else:
-        if quality and quality != 'best':
-            base_opts['format'] = f"bestvideo[height<={quality}]+bestaudio/best"
-        else:
-            base_opts['format'] = "bestvideo+bestaudio/best"
-    return base_opts
-
-
-def _add_metadata_processors(opts):
-    opts['writethumbnail'] = True
-    opts['postprocessors'].extend([
-        {'key': 'EmbedThumbnail'},
-        {'key': 'FFmpegMetadata', 'add_metadata': True},
-    ])
-    return opts
-
-
-def _download_playlist_item(entry, idx, output_folder, playlist_title, artist, use_album_tag, ydl_opts):
-    title, entry_artist, _ = _get_metadata(entry, f"Track {idx}")
-    
-    item_opts = ydl_opts.copy()
-    item_opts['outtmpl'] = os.path.join(output_folder, f"{_sanitize_filename(title)}.%(ext)s")
-    
-    album_name = playlist_title if use_album_tag else "Singles"
-    
-    item_opts['postprocessor_args'] = {
-        'ffmpeg': [
-            '-metadata', f'album={album_name}',
-            '-metadata', f'artist={artist}',
-            '-metadata', f'title={title}'
-        ]
-    }
-    
-    with yt_dlp.YoutubeDL(item_opts) as entry_ydl:
-        entry_ydl.download([entry['webpage_url']])
-    
-    final_path = os.path.join(output_folder, f"{_sanitize_filename(title)}.mp3")
-    if os.path.exists(final_path):
-        apply_metadata(final_path, entry, album=album_name)
-    
-    return title
-
-
-def download_media(url, format_type, quality, download_location, use_album_tag, task_id):
+def download_media(url, format_type, quality, download_location, task_id, is_album):
     task = download_tasks.get(task_id)
     if not task:
         return
@@ -126,39 +48,116 @@ def download_media(url, format_type, quality, download_location, use_album_tag, 
             if download_location == 'network'
             else Config.TEMP_DOWNLOAD_PATH
         )
+        os.makedirs(output_path, exist_ok=True)
 
-        base_opts = _create_base_opts(task_id)
-        base_opts = _configure_format_opts(base_opts, format_type, quality)
-        ydl_opts = _add_metadata_processors(base_opts)
+        base_opts = {
+            'progress_hooks': [lambda d: progress_hook(d, task_id, download_tasks)],
+            'quiet': False,
+            'no_warnings': False,
+            'ignoreerrors': True,
+            'socket_timeout': 30,
+            'skip_unavailable_fragments': True,
+            'fragment_retries': 3,
+            'postprocessors': [],
+        }
+
+        if format_type == 'mp3':
+            base_opts.update({
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': quality or '192',
+                }],
+            })
+        else:
+            base_opts.update({
+                'format': f"bestvideo[height<={quality}]+bestaudio/best"
+                if quality not in ('best', None)
+                else "bestvideo+bestaudio/best",
+            })
+
+        # Embed metadata and thumbnail
+        ydl_opts = base_opts.copy()
+        ydl_opts.update({
+            'writethumbnail': False,
+            'writeinfojson': False,
+            'postprocessors': base_opts.get('postprocessors', []) + [
+                {'key': 'EmbedThumbnail'},
+                {'key': 'FFmpegMetadata', 'add_metadata': True},
+            ],
+        })
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
 
+            # Playlist handling
             if 'entries' in info and info['entries']:
                 entries = [e for e in info['entries'] if e]
                 task.playlist_total = len(entries)
                 playlist_title = info.get('title', 'Unknown Playlist')
                 task.playlist_title = playlist_title
 
-                first_artist = entries[0].get('artist') or entries[0].get('uploader') or "Unknown Artist"
-                output_folder = _build_output_path(output_path, first_artist, playlist_title)
-
                 for idx, entry in enumerate(entries, start=1):
                     task.playlist_index = idx
                     try:
-                        _download_playlist_item(
-                            entry, idx, output_folder, playlist_title, 
-                            first_artist, use_album_tag, ydl_opts
-                        )
+                        artist = entry.get('artist') or entry.get('uploader') or "Unknown Artist"
+                        title = entry.get('track') or entry.get('title') or f"Track {idx}"
+
+                        # Determine album name based on checkbox
+                        if is_album:
+                            album = playlist_title
+                        else:
+                            album = "Single"
+
+                        # Folder structure: Artist/Album/
+                        artist_folder = os.path.join(output_path, _sanitize_name(artist))
+                        album_folder = os.path.join(artist_folder, _sanitize_name(album))
+                        os.makedirs(album_folder, exist_ok=True)
+
+                        entry_opts = ydl_opts.copy()
+                        entry_opts['outtmpl'] = os.path.join(album_folder, f"{_sanitize_name(title)}.%(ext)s")
+                        
+                        # Set album metadata
+                        entry_opts['postprocessor_args'] = {
+                            'ffmpeg': [
+                                '-metadata', f'album={album}',
+                                '-metadata', f'artist={artist}',
+                                '-metadata', f'title={title}'
+                            ]
+                        }
+
+                        with yt_dlp.YoutubeDL(entry_opts) as entry_ydl:
+                            entry_ydl.download([entry['webpage_url']])
+
+                        final_mp3 = os.path.join(album_folder, f"{_sanitize_name(title)}.mp3")
+                        if os.path.exists(final_mp3):
+                            entry['album'] = album
+                            entry['playlist_title'] = album
+                            apply_metadata(final_mp3, entry, album=album)
+
                         task.success_count += 1
                     except Exception as e:
-                        print(f"Failed item {idx}: {e}")
+                        print(f"Failed to download item {idx}: {e}")
                         task.failed_items.append(str(e))
             else:
-                title, artist, album = _get_metadata(info)
-                output_folder = _build_output_path(output_path, artist, album)
+                # Single video
+                title = info.get('track') or info.get('title') or "Unknown Title"
+                artist = info.get('artist') or info.get('uploader') or "Unknown Artist"
+                
+                # Determine album name based on checkbox
+                if is_album:
+                    album = info.get('album') or info.get('playlist_title') or "Unknown Album"
+                else:
+                    album = "Single"
 
-                ydl_opts['outtmpl'] = os.path.join(output_folder, f"{_sanitize_filename(title)}.%(ext)s")
+                artist_folder = os.path.join(output_path, _sanitize_name(artist))
+                album_folder = os.path.join(artist_folder, _sanitize_name(album))
+                os.makedirs(album_folder, exist_ok=True)
+
+                ydl_opts['outtmpl'] = os.path.join(album_folder, f"{_sanitize_name(title)}.%(ext)s")
+                
+                # Add metadata for single videos too
                 ydl_opts['postprocessor_args'] = {
                     'ffmpeg': [
                         '-metadata', f'album={album}',
@@ -170,9 +169,9 @@ def download_media(url, format_type, quality, download_location, use_album_tag, 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
                     ydl2.download([url])
 
-                final_path = os.path.join(output_folder, f"{_sanitize_filename(title)}.mp3")
-                if os.path.exists(final_path):
-                    apply_metadata(final_path, info, album=album)
+                final_mp3 = os.path.join(album_folder, f"{_sanitize_name(title)}.mp3")
+                if os.path.exists(final_mp3):
+                    apply_metadata(final_mp3, info, album=album)
 
                 task.success_count = 1
 
@@ -188,16 +187,19 @@ def download_media(url, format_type, quality, download_location, use_album_tag, 
         cleanup_task(task_id, download_tasks, Config.TASK_RETENTION_TIME)
 
 
-def start_download(url, format_type, quality, download_location, use_album_tag=False):
+def start_download(url, format_type, quality, download_location, is_album=False):
+    """Starts a threaded download task and returns the task ID."""
+    import threading
     task_id = str(uuid.uuid4())
     task = DownloadProgress(task_id)
     download_tasks[task_id] = task
 
-    thread = threading.Thread(
+    # Run in a background thread
+    t = threading.Thread(
         target=download_media,
-        args=(url, format_type, quality, download_location, use_album_tag, task_id),
+        args=(url, format_type, quality, download_location, task_id, is_album),
         daemon=True
     )
-    thread.start()
+    t.start()
 
     return task_id
