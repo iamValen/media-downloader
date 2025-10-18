@@ -4,19 +4,23 @@ Includes a modern frontend, Flask backend, and optional Docker support for easy 
 
 ![img](assets/demo.png)
 
+
 ## Run Locally (without Docker)
 
+### Clone
 ```bash
-git clone https://github.com/yourusername/media-downloader.git
-cd media-
+git clone https://github.com/iamValen/media-downloader.git
+cd media-downloader
 ```
 
+### Create Virtual Environment
 ```bash
 python3 -m venv venv
 source venv/bin/activate     # on Linux / macOS
 venv\Scripts\activate        # on Windows
 ```
 
+### Install pip and requirements
 ```bash
 pip install --upgrade pip
 pip install -r requirements.txt
@@ -25,9 +29,8 @@ pip install -r requirements.txt
 ### Configure download paths
 
 By default, downloads are saved to:
-
-Default Path: ~/Downloads/media_downloader
-Alternative Path: ~/.cache/media_downloader
+- Default Path: ~/Downloads/media_downloader
+- Alternative Path: ~/.cache/media_downloader
 
 To customize these paths, you can set environment variables before running:
 
@@ -36,7 +39,7 @@ export DEFAULT_DOWNLOAD_PATH=/desired/path
 export ALT_DOWNLOAD_PATH=/desired/path
 ```
 
-(Windows PowerShell equivalent):
+(Windows PowerShell equivalent)
 ```shell
 $env:DEFAULT_DOWNLOAD_PATH = "D:\desired\path"
 $env:ALT_DOWNLOAD_PATH = "C:\desired\path"
