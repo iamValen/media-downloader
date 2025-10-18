@@ -44,9 +44,15 @@ export ALT_DOWNLOAD_PATH=/desired/path
 $env:DEFAULT_DOWNLOAD_PATH = "D:\desired\path"
 $env:ALT_DOWNLOAD_PATH = "C:\desired\path"
 ```
-python app.py
 
+### Run it
+```bash
+python app.py
+```
 The server will start at http://localhost:5000
+
+
+
 
 ## Docker Deployment
 
@@ -90,9 +96,10 @@ docker-compose up -d
 - `TEMP_DOWNLOAD_PATH`: Temporary files location (default: `/app/temp`)
 
 
+
+
 # To-do
 - [X] Handle better errors
-- [ ] Remove the 2 save files options
 - [ ] Frontend Warning to use only public/unlisted and explain that it creates folders: artist/album
 - [ ] Login
 - [ ] Log file

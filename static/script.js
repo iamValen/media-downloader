@@ -49,7 +49,7 @@ async function fetchConfig() {
 function updateLocationOptions() {
     if (Object.keys(locationPaths).length === 0) return;
 
-    const defaultLabel = locationPaths.default ? `Default` : 'Default';
+    const defaultLabel = locationPaths.default ? `Default (${locationPaths.default})` : 'Default';
     const altLabel = locationPaths.alt ? `Alternative (${locationPaths.alt})` : 'Alternative';
 
     elements.location.innerHTML = `

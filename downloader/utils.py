@@ -114,7 +114,7 @@ def is_valid_file_size(filepath, max_gb=5):
     """Check if file exists and size is within acceptable range."""
     try:
         if not os.path.exists(filepath):
-            return False1
+            return False
         
         size = os.path.getsize(filepath)
         max_bytes = max_gb * 1024 * 1024 * 1024
