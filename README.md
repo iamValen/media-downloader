@@ -92,8 +92,8 @@ docker-compose up -d
 
 ### Environment Variables
 
-- `NETWORK_DOWNLOAD_PATH`: Default download location (default: `/app/downloads`)
-- `TEMP_DOWNLOAD_PATH`: Temporary files location (default: `/app/temp`)
+- `DEFAULT_DOWNLOAD_PATH`: Default download location: `/app/downloads`)
+- `ALT_DOWNLOAD_PATH`: Alternative default files location: `/app/temp`)
 
 
 
