@@ -1,10 +1,10 @@
 import os
 import uuid
 import threading
+import requests
 import yt_dlp
 from datetime import datetime
 from .utils import progress_hook, cleanup_task, apply_metadata
-from .validators import ValidationError
 from config import Config
 
 download_tasks = {}
@@ -104,7 +104,7 @@ def download_media(url, format_type, quality, download_location, task_id, is_alb
                         artist = entry.get('artist') or entry.get('uploader') or "Unknown Artist"
                         title = entry.get('track') or entry.get('title') or f"Track {idx}"
 
-                        # Determine album name based on checkbox
+                        # Determine what to set in album metadata based on checkbox in frontend
                         if is_album:
                             album = playlist_title
                         else:
@@ -118,14 +118,14 @@ def download_media(url, format_type, quality, download_location, task_id, is_alb
                         entry_opts = ydl_opts.copy()
                         entry_opts['outtmpl'] = os.path.join(album_folder, f"{_sanitize_name(title)}.%(ext)s")
                         
-                        # Set album metadata
-                        entry_opts['postprocessor_args'] = {
+                        # Set metadata
+                        """entry_opts['postprocessor_args'] = {
                             'ffmpeg': [
                                 '-metadata', f'album={album}',
                                 '-metadata', f'artist={artist}',
                                 '-metadata', f'title={title}'
                             ]
-                        }
+                        }"""
 
                         with yt_dlp.YoutubeDL(entry_opts) as entry_ydl:
                             entry_ydl.download([entry['webpage_url']])
@@ -142,14 +142,12 @@ def download_media(url, format_type, quality, download_location, task_id, is_alb
                         task.failed_items.append(str(e))
             else:
                 # Single video
+                task.playlist_index = 0
+                task.playlist_total = 1
                 title = info.get('track') or info.get('title') or "Unknown Title"
                 artist = info.get('artist') or info.get('uploader') or "Unknown Artist"
                 
-                # Determine album name based on checkbox
-                if is_album:
-                    album = info.get('album') or info.get('playlist_title') or "Unknown Album"
-                else:
-                    album = "Single"
+                album = "Single"
 
                 artist_folder = os.path.join(output_path, _sanitize_name(artist))
                 album_folder = os.path.join(artist_folder, _sanitize_name(album))
@@ -180,16 +178,25 @@ def download_media(url, format_type, quality, download_location, task_id, is_alb
         task.progress = 100
         cleanup_task(task_id, download_tasks, Config.TASK_RETENTION_TIME)
 
+    except yt_dlp.DownloadError as e:
+        task.status = 'error'
+        task.error = f"Download failed: {str(e)}"
+        print(f"Download error for task {task_id}: {e}")
+        cleanup_task(task_id, download_tasks, Config.TASK_RETENTION_TIME)
+    except requests.exceptions.RequestException as e:
+        task.status = 'error'
+        task.error = f"Network error: {str(e)}"
+        print(f"Network error for task {task_id}: {e}")
+        cleanup_task(task_id, download_tasks, Config.TASK_RETENTION_TIME)
     except Exception as e:
         task.status = 'error'
-        task.error = str(e)
-        print(f"Download error for task {task_id}: {e}")
+        task.error = f"Unexpeceted Error: {str(e)}"
+        print(f"Unexpeceted error for task {task_id}: {e}")
         cleanup_task(task_id, download_tasks, Config.TASK_RETENTION_TIME)
 
 
 def start_download(url, format_type, quality, download_location, is_album=False):
     """Starts a threaded download task and returns the task ID."""
-    import threading
     task_id = str(uuid.uuid4())
     task = DownloadProgress(task_id)
     download_tasks[task_id] = task

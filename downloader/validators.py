@@ -1,13 +1,14 @@
+import os
 from urllib.parse import urlparse
 
 
 class ValidationError(Exception):
-    """Raised when validation fails."""
+    """Raised when validation fails"""
     pass
 
 
 def validate_url(url):
-    """Validate and clean URL string."""
+    """Validate and clean URL string"""
     if not url or not isinstance(url, str):
         raise ValidationError("URL must be a non-empty string")
     
@@ -21,15 +22,27 @@ def validate_url(url):
 
 
 def validate_format(format_type, allowed_formats):
-    """Validate format type or return default."""
+    """Validate format type or return default"""
     return format_type if format_type else 'mp3'
 
 
 def validate_quality(quality, format_type):
-    """Validate quality setting or return format-specific default."""
+    """Validate quality setting or return format-specific default"""
     return quality or ('192' if format_type == 'mp3' else 'best')
 
 
 def validate_location(location, allowed_locations):
-    """Validate location or return default."""
+    """Validate location or return default"""
     return location if location in allowed_locations else 'default'
+
+def validate_file_size(filepath, max_gb=5):
+    """Check if file exists and size is within acceptable range"""
+    try:
+        if not os.path.exists(filepath):
+            return False
+        
+        size = os.path.getsize(filepath)
+        max_bytes = max_gb * 1024 * 1024 * 1024
+        return 0 < size < max_bytes
+    except Exception:
+        return False

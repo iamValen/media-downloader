@@ -1,6 +1,8 @@
 from flask import Blueprint, request, jsonify
-from downloader.tasks import download_tasks, start_download
 from config import Config
+from downloader.tasks import download_tasks, start_download
+from downloader.validators import *
+
 
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -15,10 +17,10 @@ def download():
         if not data:
             return jsonify({'error': 'Request body must be JSON'}), 400
         
-        url = data.get('url', '').strip()
-        format_type = data.get('format', 'mp3')
-        quality = data.get('quality', '192')
-        location = data.get('location', 'default')
+        url = validate_url(data.get('url', '').strip())
+        format_type = validate_format(data.get('format', 'mp3'), Config.ALLOWED_FORMATS)
+        quality = validate_quality(data.get('quality', '192'), format_type)
+        location = validate_location(data.get('location', 'default'), Config.ALLOWED_LOCATIONS)
         is_album = data.get('isAlbum', False)
         
         task_id = start_download(url, format_type, quality, location, is_album)

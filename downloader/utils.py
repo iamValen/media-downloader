@@ -1,13 +1,14 @@
 import os
 import time
 import threading
+import imghdr
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, APIC, TIT2, TPE1, TALB, error
 import requests
 
 
 def apply_metadata(mp3_path, info, album=None):
-    """Embed metadata and thumbnail into MP3 file for Navidrome."""
+    """Embed metadata and thumbnail into MP3 file for Navidrome"""
     try:
         audio = MP3(mp3_path, ID3=ID3)
         
@@ -36,13 +37,14 @@ def apply_metadata(mp3_path, info, album=None):
 
 
 def _embed_thumbnail(audio, thumb_url):
-    """Embed thumbnail image into audio file."""
+    """Embed thumbnail image into audio file"""
     try:
         img_data = requests.get(thumb_url, timeout=10).content
+        mime_type = f'image/{imghdr.what(None, img_data) or "jpeg"}'
         audio.tags.add(
             APIC(
                 encoding=3,
-                mime='image/jpeg',
+                mime=mime_type,
                 type=3,
                 desc='Cover',
                 data=img_data
@@ -53,7 +55,7 @@ def _embed_thumbnail(audio, thumb_url):
 
 
 def progress_hook(d, task_id, tasks_dict):
-    """Update task progress based on download status."""
+    """Update task progress based on download status"""
     task = tasks_dict.get(task_id)
     if not task:
         return
@@ -83,41 +85,28 @@ def _update_downloading_progress(d, task):
     if task.playlist_total > 1:
         completed = max(task.playlist_index - 1, 0)
         overall_progress = (completed + current_video_progress) / task.playlist_total
-        task.progress = min(overall_progress * 100, 99.9)
+        task.progress = min(overall_progress * 100, 100)
     else:
-        task.progress = min(current_video_progress * 100, 99.9)
+        task.progress = min(current_video_progress * 100, 100)
 
 
 def _update_finished_progress(d, task):
-    """Update task progress after download finishes."""
+    """Update task progress after download finishes"""
     task.status = 'processing'
     task.filename = os.path.basename(d.get('filename', 'Unknown'))
     task.filepath = d.get('filename')
 
     if task.playlist_total > 1:
-        task.progress = min((task.playlist_index / task.playlist_total) * 100, 99.9)
+        task.progress = min((task.playlist_index / task.playlist_total) * 100, 100)
     else:
         task.progress = 95
 
 
 def cleanup_task(task_id, tasks_dict, retention_minutes=60):
-    """Remove task after retention period."""
+    """Remove task after retention period"""
     def delayed_cleanup():
         time.sleep(retention_minutes * 60)
         tasks_dict.pop(task_id, None)
     
     thread = threading.Thread(target=delayed_cleanup, daemon=True)
     thread.start()
-
-
-def is_valid_file_size(filepath, max_gb=5):
-    """Check if file exists and size is within acceptable range."""
-    try:
-        if not os.path.exists(filepath):
-            return False
-        
-        size = os.path.getsize(filepath)
-        max_bytes = max_gb * 1024 * 1024 * 1024
-        return 0 < size < max_bytes
-    except Exception:
-        return False
