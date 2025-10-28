@@ -49,23 +49,28 @@ $env:ALT_DOWNLOAD_PATH = "C:\desired\path"
 ```bash
 python app.py
 ```
-The server will start at http://localhost:5000
-
 
 
 
 ## Docker Deployment
 
-### Quick Start
+### Using Docker run command
 ```bash
 # Build the image
 docker build -t media-downloader .
+```
+Run the container image
 
-# Run the container
+  Change <PATH1-IN-HOST> and <PATH2-IN-HOST> for the desired paths where the files will be downloaded to.
+  If you just want one download path remove "-v $<PATH2-IN-HOST>:/app/downloads2 \"
+
+```bash
 docker run -d \
   -p 5000:5000 \
-  -v $(pwd)/downloads:/app/downloads \
-  -v $(pwd)/temp:/app/temp \
+  -v $<PATH1-IN-HOST>:/app/downloads \
+  -v $<PATH2-IN-HOST>:/app/downloads2 \
+  -e DEFAULT_DOWNLOAD_PATH=/app/downloads
+  -e ALT_DOWNLOAD_PATH=/app/downloads2
   --name media-downloader \
   media-downloader
 ```
@@ -89,14 +94,6 @@ Then run:
 ```bash
 docker-compose up -d
 ```
-
-### Environment Variables
-
-- `DEFAULT_DOWNLOAD_PATH`: Default download location: `/app/downloads`)
-- `ALT_DOWNLOAD_PATH`: Alternative default files location: `/app/temp`)
-
-
-
 
 # To-do
 - [X] Handle better errors

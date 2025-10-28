@@ -3,16 +3,16 @@ from pathlib import Path
 
 
 class Config:
-    """Base configuration."""
+    """Base configuration"""
     DEFAULT_DOWNLOAD_PATH = os.environ.get(
         'DEFAULT_DOWNLOAD_PATH', 
         str(Path.home() / 'Downloads' / 'media_downloader')
     )
     ALT_DOWNLOAD_PATH = os.environ.get(
         'ALT_DOWNLOAD_PATH', 
-        str(Path.home() / '.cache' / 'media_downloader')
+        str(Path.home() / 'Downloads' / 'media_downloader')
     )
-    
+
     TASK_RETENTION_TIME = 60
     MAX_PLAYLIST_SIZE = 100
     DOWNLOAD_TIMEOUT = 3600
@@ -20,9 +20,8 @@ class Config:
     ALLOWED_FORMATS = ['mp3', 'mp4']
     ALLOWED_LOCATIONS = ['default', 'alt']
 
-    @classmethod
     def validate_paths(cls):
-        """Create download directories if they don't exist."""
+        """Create download directories if they don't exist"""
         try:
             Path(cls.DEFAULT_DOWNLOAD_PATH).mkdir(parents=True, exist_ok=True)
             Path(cls.ALT_DOWNLOAD_PATH).mkdir(parents=True, exist_ok=True)
