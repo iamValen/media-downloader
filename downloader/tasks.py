@@ -53,12 +53,10 @@ def download_media(url, format_type, quality, download_location, task_id, is_alb
         base_opts = {
             'progress_hooks': [lambda d: progress_hook(d, task_id, download_tasks)],
             'quiet': False,
-            'no_warnings': False,
             'ignoreerrors': True,
             'socket_timeout': 30,
             'skip_unavailable_fragments': True,
             'fragment_retries': 3,
-            'postprocessors': [],
         }
 
         if format_type == 'mp3':
@@ -77,105 +75,52 @@ def download_media(url, format_type, quality, download_location, task_id, is_alb
                 else "bestvideo+bestaudio/best",
             })
 
-        # Embed metadata and thumbnail
-        ydl_opts = base_opts.copy()
-        ydl_opts.update({
-            'writethumbnail': False,
-            'writeinfojson': False,
-            'postprocessors': base_opts.get('postprocessors', []) + [
-                {'key': 'EmbedThumbnail'},
-                {'key': 'FFmpegMetadata', 'add_metadata': True},
-            ],
-        })
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(base_opts) as ydl:
             info = ydl.extract_info(url, download=False)
 
-            # Playlist handling
-            if 'entries' in info and info['entries']:
-                entries = [e for e in info['entries'] if e]
-                task.playlist_total = len(entries)
-                playlist_title = info.get('title', 'Unknown Playlist')
-                task.playlist_title = playlist_title
+        # choose single or playlist
+        entries = info.get('entries') or [info]
+        task.playlist_total = len(entries)
+        task.playlist_index = 0
+        playlist_title = info.get('title', 'Unknown Playlist') if len(entries) > 1 else None
+        task.playlist_title = playlist_title
 
-                for idx, entry in enumerate(entries, start=1):
-                    task.playlist_index = idx
-                    try:
-                        artist = entry.get('artist') or entry.get('uploader') or "Unknown Artist"
-                        title = entry.get('track') or entry.get('title') or f"Track {idx}"
+        for idx, entry in enumerate(entries, start=1):
+            task.playlist_index = idx
+            try:
+                # Extract metadata
+                title = entry.get('track') or entry.get('title') or f"Track {idx}"
+                artist = entry.get('artist') or entry.get('uploader') or "Unknown Artist"
+                album = playlist_title if is_album and playlist_title else "Single"
 
-                        # Determine what to set in album metadata based on checkbox in frontend
-                        if is_album:
-                            album = playlist_title
-                        else:
-                            album = "Single"
-
-                        # Folder structure: Artist/Album/
-                        artist_folder = os.path.join(output_path, _sanitize_name(artist))
-                        album_folder = os.path.join(artist_folder, _sanitize_name(album))
-                        os.makedirs(album_folder, exist_ok=True)
-
-                        entry_opts = ydl_opts.copy()
-                        entry_opts['outtmpl'] = os.path.join(album_folder, f"{_sanitize_name(title)}.%(ext)s")
-                        
-                        # Set metadata
-                        """entry_opts['postprocessor_args'] = {
-                            'ffmpeg': [
-                                '-metadata', f'album={album}',
-                                '-metadata', f'artist={artist}',
-                                '-metadata', f'title={title}'
-                            ]
-                        }"""
-
-                        with yt_dlp.YoutubeDL(entry_opts) as entry_ydl:
-                            entry_ydl.download([entry['webpage_url']])
-
-                        final_mp3 = os.path.join(album_folder, f"{_sanitize_name(title)}.mp3")
-                        if os.path.exists(final_mp3):
-                            entry['album'] = album
-                            entry['playlist_title'] = album
-                            apply_metadata(final_mp3, entry, album=album)
-
-                        task.success_count += 1
-                    except Exception as e:
-                        print(f"Failed to download item {idx}: {e}")
-                        task.failed_items.append(str(e))
-            else:
-                # Single video
-                task.playlist_index = 0
-                task.playlist_total = 1
-                title = info.get('track') or info.get('title') or "Unknown Title"
-                artist = info.get('artist') or info.get('uploader') or "Unknown Artist"
-                
-                album = "Single"
-
+                # Create folders
                 artist_folder = os.path.join(output_path, _sanitize_name(artist))
                 album_folder = os.path.join(artist_folder, _sanitize_name(album))
                 os.makedirs(album_folder, exist_ok=True)
 
-                ydl_opts['outtmpl'] = os.path.join(album_folder, f"{_sanitize_name(title)}.%(ext)s")
-                
-                # Add metadata for single videos
-                ydl_opts['postprocessor_args'] = {
-                    'ffmpeg': [
-                        '-metadata', f'album={album}',
-                        '-metadata', f'artist={artist}',
-                        '-metadata', f'title={title}'
-                    ]
-                }
+                # Start download
+                entry_opts = base_opts.copy()
+                ext = 'mp3' if format_type == 'mp3' else 'mp4'
+                entry_opts['outtmpl'] = os.path.join(album_folder, f"{_sanitize_name(title)}.%(ext)s")
+                with yt_dlp.YoutubeDL(entry_opts) as entry_ydl:
+                    entry_ydl.download([entry.get('webpage_url') or url])
 
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
-                    ydl2.download([url])
+                # Apply metadata
+                final_file = os.path.join(album_folder, f"{_sanitize_name(title)}.{ext}")
+                if os.path.exists(final_file) and format_type == 'mp3':
+                    entry['album'] = album
+                    entry['playlist_title'] = album
+                    apply_metadata(final_file, entry, album=album)
 
-                final_mp3 = os.path.join(album_folder, f"{_sanitize_name(title)}.mp3")
-                if os.path.exists(final_mp3):
-                    apply_metadata(final_mp3, info, album=album)
+                task.success_count += 1
+            except Exception as e:
+                print(f"Failed to download item {idx}: {e}")
+                task.failed_items.append(str(e))
 
-                task.success_count = 1
-
-        task.filename = info.get('title', 'Unknown')
+        # Final task update
         task.status = 'completed'
         task.progress = 100
+        task.filename = info.get('title', 'Unknown')
         cleanup_task(task_id, download_tasks, Config.TASK_RETENTION_TIME)
 
     except yt_dlp.DownloadError as e:

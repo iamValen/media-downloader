@@ -100,8 +100,10 @@ docker-compose up -d
 
 # To-do
 - [X] Handle better errors
-- [ ] Frontend Warning to use only public/unlisted and explain that it creates folders: artist/album
-- [ ] Login - PAT
-- [ ] Log file
+- [X] Frontend Warning to use only public/unlisted and explain that it creates folders: artist/album
+
+- [ ] Login - PAT/JWT ?
 - [ ] Ditch links and make it search
 - [ ] Recommend music based on input/profile
+
+- [ ] Logs
