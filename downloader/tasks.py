@@ -1,4 +1,3 @@
-# task.py
 import os
 import uuid
 import threading
@@ -42,8 +41,7 @@ def _sanitize_name(name: Optional[str]) -> str:
     return "".join(c for c in name if c.isalnum() or c in " .-_").strip()
 
 
-def download_media(url: str, format_type: str, quality: Optional[str], download_location: str, task_id: str, is_album: bool
-) -> None:
+def download_media(url: str, format_type: str, quality: Optional[str], download_location: str, task_id: str, is_album: bool) -> None:
     task: Optional[DownloadProgress] = download_tasks.get(task_id)
     if not task:
         return
@@ -148,8 +146,7 @@ def download_media(url: str, format_type: str, quality: Optional[str], download_
         cleanup_task(task_id, download_tasks, Config.TASK_RETENTION_TIME)
 
 
-def start_download(url: str, format_type: str, quality: Optional[str], download_location: str, is_album: bool = False
-) -> str:
+def start_download(url: str, format_type: str, quality: Optional[str], download_location: str, is_album: bool = False) -> str:
     """Starts a threaded download task and returns the task ID."""
     task_id: str = str(uuid.uuid4())
     task = DownloadProgress(task_id)

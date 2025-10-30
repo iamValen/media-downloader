@@ -4,7 +4,6 @@ from urllib.parse import urlparse
 
 
 class ValidationError(Exception):
-    """Raised when validation fails"""
     pass
 
 
@@ -24,7 +23,7 @@ def validate_url(url: str) -> str:
 
 def validate_format(format_type: str, allowed_formats: List[str]) -> str:
     """Validate format type or return default"""
-    return format_type if format_type else 'mp3'
+    return format_type if format_type in allowed_formats else 'mp3'
 
 
 def validate_quality(quality: str, format_type: str) -> str:
