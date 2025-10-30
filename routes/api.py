@@ -1,29 +1,29 @@
 from flask import Blueprint, request, jsonify
+from typing import Any, Dict
 from config import Config
 from downloader.tasks import download_tasks, start_download
-from downloader.validators import *
-
+from downloader.validators import validate_url, validate_format, validate_quality, validate_location
 
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 
 @api_bp.route('/download', methods=['POST'])
-def download():
+def download() -> Any:
     """Start a new download task."""
     try:
-        data = request.get_json()
+        data: Dict[str, Any] = request.get_json()
         
         if not data:
             return jsonify({'error': 'Request body must be JSON'}), 400
         
-        url = validate_url(data.get('url', '').strip())
-        format_type = validate_format(data.get('format', 'mp3'), Config.ALLOWED_FORMATS)
-        quality = validate_quality(data.get('quality', '192'), format_type)
-        location = validate_location(data.get('location', 'default'), Config.ALLOWED_LOCATIONS)
-        is_album = data.get('isAlbum', False)
+        url: str = validate_url(data.get('url', '').strip())
+        format_type: str = validate_format(data.get('format', 'mp3'), Config.ALLOWED_FORMATS)
+        quality: str = validate_quality(data.get('quality', '192'), format_type)
+        location: str = validate_location(data.get('location', 'default'), Config.ALLOWED_LOCATIONS)
+        is_album: bool = data.get('isAlbum', False)
         
-        task_id = start_download(url, format_type, quality, location, is_album)
+        task_id: str = start_download(url, format_type, quality, location, is_album)
         task = download_tasks.get(task_id)
         
         if task.status == 'error':
@@ -36,7 +36,7 @@ def download():
 
 
 @api_bp.route('/status/<task_id>', methods=['GET'])
-def status(task_id):
+def status(task_id: str) -> Any:
     """Get status of a download task."""
     try:
         task = download_tasks.get(task_id)
@@ -51,7 +51,7 @@ def status(task_id):
 
 
 @api_bp.route('/config', methods=['GET'])
-def config():
+def config() -> Any:
     """Get application configuration."""
     return jsonify({
         'default_path': Config.DEFAULT_DOWNLOAD_PATH,
@@ -64,6 +64,6 @@ def config():
 @api_bp.errorhandler(400)
 @api_bp.errorhandler(404)
 @api_bp.errorhandler(500)
-def handle_error(error):
+def handle_error(error: Any) -> Any:
     """Handle HTTP errors."""
     return jsonify({'error': str(error)}), error.code

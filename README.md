@@ -96,8 +96,11 @@ docker-compose up -d
 ```
 
 # To-do
-- [X] Handle better errors
 - [X] Frontend Warning to use only public/unlisted and explain that it creates folders: artist/album
+- [ ] Video Thumbnail
+- [ ] Cancel option 
+
+- [ ] Types
 
 - [ ] Login - PAT/JWT ?
 - [ ] Ditch links and make it search
