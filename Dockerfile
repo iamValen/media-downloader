@@ -24,8 +24,6 @@ COPY --chown=appuser:appuser requirements.txt .
 RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel && \
     pip3 install --no-cache-dir -r requirements.txt
 
-RUN pip3 install --no-cache-dir yt-dlp[default] yt-dlp-youtube-oauth2
-
 COPY --chown=appuser:appuser . .
 
 RUN mkdir -p /app/downloads /app/temp && \
