@@ -62,6 +62,8 @@ def download_media(url: str, format_type: str, quality: Optional[str], download_
             'skip_unavailable_fragments': True,
             'fragment_retries': 3,
             'cookiefile': '/app/cookies.txt',
+            'extractor_args': {'youtube': {'player_client': ['default']}},
+            'remote_components': ['ejs:github'],
         }
 
         if format_type == 'mp3':
