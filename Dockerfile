@@ -12,8 +12,13 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     ca-certificates \
+    curl \
+    unzip \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
+
+# Install deno
+RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh
 
 COPY --chown=appuser:appuser requirements.txt .
 RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel && \
@@ -27,7 +32,9 @@ RUN mkdir -p /app/downloads /app/temp && \
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    FLASK_APP=app.py
+    FLASK_APP=app.py \
+    DENO_INSTALL=/usr/local \
+    PATH="/usr/local/bin:$PATH"
 
 USER appuser
 
