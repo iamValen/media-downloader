@@ -61,6 +61,7 @@ def download_media(url: str, format_type: str, quality: Optional[str], download_
             'socket_timeout': 30,
             'skip_unavailable_fragments': True,
             'fragment_retries': 3,
+            'cookiefile': '/app/cookies.txt',
         }
 
         if format_type == 'mp3':

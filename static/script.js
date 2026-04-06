@@ -48,37 +48,56 @@ async function fetchConfig() {
 
 function updateLocationOptions() {
     if (Object.keys(locationPaths).length === 0) return;
+    if (!elements.location) {
+        console.error("Location undefined");
+        throw new Error("Location element is required but missing");
+    }
+    elements.location.textContent = '';
 
-    const defaultLabel = locationPaths.default ? `Default (${locationPaths.default})` : 'Default';
-    const altLabel = locationPaths.alt ? `Alternative (${locationPaths.alt})` : 'Alternative';
+    const defaultOption = document.createElement('option');
+    defaultOption.value = 'default';
+    defaultOption.textContent = locationPaths.default
+        ? `Default (${locationPaths.default})`
+        : 'Default';
 
-    elements.location.innerHTML = `
-        <option value="default">${defaultLabel}</option>
-        <option value="alt">${altLabel}</option>
-    `;
+    const altOption = document.createElement('option');
+    altOption.value = 'alt';
+    altOption.textContent = locationPaths.alt
+        ? `Alternative (${locationPaths.alt})`
+        : 'Alternative';
+
+    elements.location.append(defaultOption, altOption);
 }
 
 function updateQualityOptions() {
     const format = elements.format.value;
     const options = QUALITY_OPTIONS[format];
+    elements.quality.textContent = '';
 
-    elements.quality.innerHTML = options.map(opt => {
-        const isDefault = (format === 'mp3' && opt.value === '192') || 
-                         (format === 'mp4' && opt.value === 'best');
-        return `<option value="${opt.value}" ${isDefault ? 'selected' : ''}>${opt.label}</option>`;
-    }).join('');
+    for (const opt of options) {
+        const option = document.createElement('option');
+        option.value = opt.value;
+        option.textContent = opt.label;
+
+        const isDefault =
+            (format === 'mp3' && opt.value === '192') ||
+            (format === 'mp4' && opt.value === 'best');
+
+        if (isDefault) option.selected = true;
+        elements.quality.appendChild(option);
+    }
 }
 
 function renderStatus(task) {
-    const statusClasses = ['status-box'];
-    if (task.status === 'error') statusClasses.push('error');
-    else if (task.status === 'completed') statusClasses.push('success');
-    else if (task.failed_items > 0) statusClasses.push('warning');
+    const container = document.createElement('div');
+    container.className = 'status-box';
 
-    const statusText = task.status.charAt(0).toUpperCase() + task.status.slice(1);
+    if (task.status === 'error') container.classList.add('error');
+    else if (task.status === 'completed') container.classList.add('success');
+    else if (task.failed_items > 0) container.classList.add('warning');
 
     const sections = [
-        createStatusRow('Status', statusText),
+        createStatusRow('Status', capitalize(task.status)),
         createProgressBar(task),
         createSpeedEta(task),
         createFileInfo(task),
@@ -86,32 +105,48 @@ function renderStatus(task) {
         createErrorInfo(task)
     ].filter(Boolean);
 
-    elements.status.innerHTML = `<div class="${statusClasses.join(' ')}">
-        ${sections.join('')}
-    </div>`;
+    container.append(...sections.flat());
+    elements.status.replaceChildren(container);
 }
 
 function createStatusRow(label, value, className = '') {
-    return `<div class="status-row">
-        <span class="status-label ${className}">${label}:</span>
-        <span class="status-value ${className}">${escapeHtml(value)}</span>
-    </div>`;
+    const row = document.createElement('div');
+    row.className = 'status-row';
+
+    const labelEl = document.createElement('span');
+    labelEl.className = `status-label ${className}`;
+    labelEl.textContent = `${label}:`;
+
+    const valueEl = document.createElement('span');
+    valueEl.className = `status-value ${className}`;
+    valueEl.textContent = value;
+
+    row.append(labelEl, valueEl);
+    return row;
 }
 
 function createProgressBar(task) {
     if (task.progress <= 0 || task.progress >= 100) return null;
-    const percent = task.progress.toFixed(1);
-    return `<div class="progress-bar">
-        <div class="progress-fill" style="width: ${percent}%"></div>
-    </div>
-    ${createStatusRow('Progress', `${percent}%`)}`;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'progress-bar';
+
+    const fill = document.createElement('div');
+    fill.className = 'progress-fill';
+    fill.style.width = `${task.progress.toFixed(1)}%`;
+    wrapper.appendChild(fill);
+
+    return [wrapper, createStatusRow('Progress', `${task.progress.toFixed(1)}%`)];
 }
 
 function createSpeedEta(task) {
     if (!task.speed || !task.eta) return null;
+
     const speedMB = (task.speed / (1024 * 1024)).toFixed(2);
-    return `${createStatusRow('Speed', `${speedMB} MB/s`)}
-    ${createStatusRow('ETA', formatSeconds(task.eta))}`;
+    return [
+        createStatusRow('Speed', `${speedMB} MB/s`),
+        createStatusRow('ETA', formatSeconds(task.eta))
+    ];
 }
 
 function createFileInfo(task) {
@@ -119,8 +154,8 @@ function createFileInfo(task) {
 }
 
 function createFailedInfo(task) {
-    return task.failed_items > 0 
-        ? createStatusRow('Failed Items', task.failed_items.toString(), 'warning') 
+    return task.failed_items > 0
+        ? createStatusRow('Failed Items', task.failed_items.toString(), 'warning')
         : null;
 }
 
@@ -138,9 +173,11 @@ function pollStatus(taskId) {
                 stopPolling();
                 return;
             }
+
             const task = await res.json();
             renderStatus(task);
-            if (task.status === 'completed' || task.status === 'error') {
+
+            if (['completed', 'error'].includes(task.status)) {
                 stopPolling();
             }
         } catch (error) {
@@ -161,9 +198,10 @@ function stopPolling() {
 }
 
 function showError(message) {
-    elements.status.innerHTML = `<div class="status-box error">
-        ${createStatusRow('Error', message, 'error')}
-    </div>`;
+    const container = document.createElement('div');
+    container.className = 'status-box error';
+    container.append(createStatusRow('Error', message, 'error'));
+    elements.status.replaceChildren(container);
 }
 
 function formatSeconds(seconds) {
@@ -173,10 +211,8 @@ function formatSeconds(seconds) {
     return `${Math.round(seconds / 3600)}h`;
 }
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+function capitalize(str) {
+    return str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
 }
 
 elements.form.addEventListener('submit', async (e) => {
@@ -191,9 +227,11 @@ elements.form.addEventListener('submit', async (e) => {
 
     isDownloading = true;
     elements.submitBtn.disabled = true;
-    elements.status.innerHTML = `<div class="status-box">
-        ${createStatusRow('Status', 'Starting download...')}
-    </div>`;
+
+    const starting = document.createElement('div');
+    starting.className = 'status-box';
+    starting.append(createStatusRow('Status', 'Starting download...'));
+    elements.status.replaceChildren(starting);
 
     try {
         const payload = {
@@ -228,7 +266,6 @@ elements.form.addEventListener('submit', async (e) => {
 });
 
 elements.format.addEventListener('change', updateQualityOptions);
-
 document.addEventListener('DOMContentLoaded', () => {
     updateQualityOptions();
     fetchConfig();

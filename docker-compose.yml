@@ -1,0 +1,9 @@
+services:
+  media-downloader:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./downloads:/home/appuser/Downloads/media-downloader
+      - ./temp:/home/appuser/temp
+    restart: unless-stopped
